@@ -7,6 +7,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import category_encoders as ce
 
+from fastapi import Request,FastAPI
+
 from pandas.plotting import scatter_matrix
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
@@ -14,6 +16,7 @@ from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
 
 dataframe = pd.read_csv("titanic.csv")
 figures = dict()
+
 
 def plotter():
     my_stringIObytes = io.BytesIO()
@@ -24,11 +27,13 @@ def plotter():
 
     return my_base64_jpgData
 
-def prediction(array,loaded_model):
+
+def prediction(array, loaded_model):
     a = np.asarray(array).reshape(1, -1)
     print(a)
     predicted_value = loaded_model.predict(a)
     return predicted_value
+
 
 def create_model(df):
     y = pd.Series(df['Survived'])
@@ -47,24 +52,27 @@ def create_model(df):
 
     return loaded_model
 
+
 def initial_code():
-    global dataframe
+    global dataframe,figures
     df = dataframe.copy(deep=True)
 
     ser = df.isna().sum()
     ser_dict = ser.to_dict()
 
-    for label,value in ser_dict.items():
+    for label, value in ser_dict.items():
         if value < 5:
             df.dropna(subset=[label], inplace=True)
-        elif value > 5 and value <600:
-            df[label]= df[label].fillna(df[label].mean())
+        elif value > 5 and value < 600:
+            df[label] = df[label].fillna(df[label].mean())
         elif value > 600:
             df[label] = df[label].fillna('NA')
 
     # df.dtypes.apply(lambda x: print(str(x)))
     data_types = df.dtypes.apply(lambda x: "number" if (str(x) == "int64" or "float64" == str(x)) else "text")
-    data_types = data_types.to_dict().items()
+    data_types = data_types.to_dict()
+    del data_types['Survived']
+    data_types = data_types.items()
 
     input_fields = list(data_types)
     figures['inputs'] = input_fields
@@ -81,7 +89,7 @@ def initial_code():
     scatter_matrix(df[num_cols], figsize=(50, 50))
     my_base64_jpgData = plotter()
 
-    global figures
+    
     figures['columns'] = col_histograms
     figures['scatter_matrix'] = my_base64_jpgData
 
@@ -95,6 +103,27 @@ def initial_code():
 
     return create_model(df)
 
+
 model = initial_code()
 
-print(input_fields)
+app = FastAPI()
+
+
+@app.get("/getData")
+def getData():
+    global figures
+    return figures
+
+@app.post('/postData')
+def postData(req: Request):
+    global dataframe, model, figures
+
+    row = req.json()
+    arr = list(row.values())
+    predicted = prediction(arr,model)
+    row['Survived'] = [predicted]
+    dataframe = dataframe.append(row, ignore_index=True, sort=False)
+    model = initial_code()
+    figures['prediction'] = predicted
+
+    return figures
