@@ -48,11 +48,17 @@ def create_model(df):
     return loaded_model
 
 def initial_code():
-    global dataframe
+    global dataframe,figures
     df = dataframe.copy(deep=True)
 
     ser = df.isna().sum()
     ser_dict = ser.to_dict()
+
+    # print(list(df['Sex'].unique()))
+    # print(list(df['Embarked'].unique()))
+
+    figures['gender'] = list(df['Sex'].unique())
+    figures['Embardked'] = list(df['Embarked'].unique())
 
     for label,value in ser_dict.items():
         if value < 5:
@@ -81,7 +87,6 @@ def initial_code():
     scatter_matrix(df[num_cols], figsize=(50, 50))
     my_base64_jpgData = plotter()
 
-    global figures
     figures['columns'] = col_histograms
     figures['scatter_matrix'] = my_base64_jpgData
 
@@ -97,4 +102,4 @@ def initial_code():
 
 model = initial_code()
 
-print(input_fields)
+# print(input_fields)
