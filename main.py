@@ -29,36 +29,44 @@ def plotter():
 
 
 def prediction(array, loaded_model):
-    a = np.asarray(array).reshape(1, -1)
-    print(a)
-    predicted_value = loaded_model.predict(a)
+    
+    # a = np.asarray(array).reshape(1, -1)
+    # print(a)
+    predicted_value = loaded_model.predict(array)
     return predicted_value
 
 
 def create_model(df):
-    global figures
-    y = pd.Series(df['Survived'])
-    drop_list = ['Survived', 'Name', 'Ticket', 'Cabin']
-    X = df.drop(drop_list, axis=1)
-    
-    data_types = df.dtypes.apply(lambda x: "number" if (str(x) == "int64" or "float64" == str(x)) else "text")
-    data_types = data_types.to_dict().items()
+    global dataframe
+    X,y = None,None
 
-    input_fields = list(data_types)
-    figures['inputs'] = input_fields
+    if isinstance(df,pd.DataFrame):
+        drop_list = ['Survived', 'Name', 'Ticket', 'Cabin']
+        y = pd.Series(df['Survived'])
+        X =df.drop(drop_list, axis=1)
+        data_types = df.dtypes.apply(lambda x: "number" if (str(x) == "int64" or "float64" == str(x)) else "text")
+        data_types = data_types.to_dict()
+        del data_types['Survived']
+        data_types = data_types.items()
+
+        input_fields = list(data_types)
+        figures['inputs'] = input_fields
+    else:
+        df = pd.DataFrame(df)
+        # drop_list = ['Name', 'Ticket', 'Cabin']
+        dfCopy = dict(df)
+        dfCopy['Survived'] = "Temp"
+        dataframe = dataframe.append(dfCopy, ignore_index=True, sort=False)
+        X = df
 
 
     encoder = ce.OneHotEncoder(handle_unknown='return_nan', return_df=True, use_cat_names=True)
     X = encoder.fit_transform(X)
 
     # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y, random_state=42)
-    model = RandomForestClassifier()
-    # model.fit(X_train, y_train)
-    model.fit(X, y)
-    joblib.dump(model, "model_joblib")
-    loaded_model = joblib.load("model_joblib")
+   
 
-    return loaded_model
+    return X,y
 
 
 def initial_code():
@@ -68,8 +76,8 @@ def initial_code():
     ser = df.isna().sum()
     ser_dict = ser.to_dict()
 
-    # print(list(df['Sex'].unique()))
-    # print(list(df['Embarked'].unique()))
+    print(list(df['Sex'].unique()))
+    print(list(df['Embarked'].dropna().unique()))
 
     figures['gender'] = list(df['Sex'].unique())
     figures['Embarked'] = list(df['Embarked'].dropna().unique())
@@ -107,7 +115,13 @@ def initial_code():
     my_base64_jpgData = plotter()
     figures['object_columns'] = my_base64_jpgData
 
-    return create_model(df)
+    X,y = create_model(df)
+    model = RandomForestClassifier()
+    # model.fit(X_train, y_train)
+    model.fit(X, y)
+    joblib.dump(model, "model_joblib")
+    loaded_model = joblib.load("model_joblib")
+    return loaded_model
 
 
 model = initial_code()
@@ -125,14 +139,16 @@ async def postData(req: Request):
     global dataframe, model, figures
 
     row = await req.json()
-    arr = list()
-    for r,val in row.items():
-        arr.append(val[0])
-    print(row)
-    predicted = prediction(arr,model)
-    row['Survived'] = [predicted]
-    dataframe = dataframe.append(row, ignore_index=True, sort=False)
-    model = initial_code()
+    # arr = list()
+    # for r,val in row.items():
+    #     arr.append(val[0])
+    # print(row)
+
+    X,y = create_model(row)
+    predicted = prediction(X.to_numpy(),model)
+    dataframe.iloc[-1,dataframe.columns.get_loc('Survived')] = predicted
+
+    # model = initial_code()
     figures['prediction'] = predicted
 
     return figures
