@@ -1,6 +1,7 @@
 import io
 import base64
 import joblib
+import json
 
 import pandas as pd
 import numpy as np
@@ -16,7 +17,7 @@ from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
 
 dataframe = pd.read_csv("titanic.csv")
 figures = dict()
-
+model = None
 
 def plotter():
     my_stringIObytes = io.BytesIO()
@@ -28,41 +29,43 @@ def plotter():
     return my_base64_jpgData
 
 
-def prediction(array, loaded_model):
-    a = np.asarray(array).reshape(1, -1)
-    print(a)
-    predicted_value = loaded_model.predict(a)
+def prediction(array):
+    global model,dataframe
+    # a = np.asarray(array).reshape(1, -1)
+    # print(array)
+    predicted_value = model.predict(array)
+    dataframe.iloc[-1, dataframe.columns.get_loc('Survived')] = predicted_value
+    initial_code()
     return predicted_value
 
 
 def create_model(df):
-    global figures
-    y = pd.Series(df['Survived'])
-    drop_list = ['Survived', 'Name', 'Ticket', 'Cabin']
-    X = df.drop(drop_list, axis=1)
-    
-    data_types = df.dtypes.apply(lambda x: "number" if (str(x) == "int64" or "float64" == str(x)) else "text")
-    data_types = data_types.to_dict().items()
+    global dataframe
 
-    input_fields = list(data_types)
-    figures['inputs'] = input_fields
+    y,X = None,None
 
+    if isinstance(df, pd.DataFrame):
+        y = pd.Series(df['Survived'])
+        drop_list = ['Survived', 'Name', 'Ticket', 'Cabin']
+        X = df.drop(drop_list, axis=1)
+    else:
+        dfCopy = df.copy()
+        dfCopy["Survived"] = "TEMP"
+        dataframe = dataframe.append(dfCopy, ignore_index=True, sort=False)
+        X = pd.DataFrame(df)
+        # drop_list = ['Name', 'Ticket', 'Cabin']
 
     encoder = ce.OneHotEncoder(handle_unknown='return_nan', return_df=True, use_cat_names=True)
     X = encoder.fit_transform(X)
-
+    X = X.to_numpy()
+    # print(X)
     # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y, random_state=42)
-    model = RandomForestClassifier()
-    # model.fit(X_train, y_train)
-    model.fit(X, y)
-    joblib.dump(model, "model_joblib")
-    loaded_model = joblib.load("model_joblib")
 
-    return loaded_model
+    return X, y
 
 
 def initial_code():
-    global dataframe,figures
+    global dataframe,figures,model
     df = dataframe.copy(deep=True)
 
     ser = df.isna().sum()
@@ -71,8 +74,16 @@ def initial_code():
     # print(list(df['Sex'].unique()))
     # print(list(df['Embarked'].unique()))
 
-    figures['gender'] = list(df['Sex'].unique())
-    figures['Embarked'] = list(df['Embarked'].dropna().unique())
+    data_types = df.dtypes.apply(lambda x: "number" if (str(x) == "int64" or "float64" == str(x)) else "text")
+    data_types = data_types.to_dict()
+    del data_types['Survived']
+    data_types = data_types.items()
+
+    input_fields = list(list(l) for l in data_types)
+    figures['inputs'] = input_fields
+
+    figures['gender'] = df['Sex'].unique()
+    figures['Embarked'] = df['Embarked'].dropna().unique()
 
     for label,value in ser_dict.items():
         if value < 5:
@@ -107,10 +118,19 @@ def initial_code():
     my_base64_jpgData = plotter()
     figures['object_columns'] = my_base64_jpgData
 
-    return create_model(df)
+    X,y = create_model(df)
+    model = RandomForestClassifier()
+    # model.fit(X_train, y_train)
+    model.fit(X, y)
+    joblib.dump(model, "model_joblib")
+    loaded_model = joblib.load("model_joblib")
 
 
-model = initial_code()
+    # print(figures)
+    model =  loaded_model
+
+
+initial_code()
 
 app = FastAPI()
 
@@ -118,6 +138,8 @@ app = FastAPI()
 @app.get("/getData")
 def getData():
     global figures
+    if figures.get('prediction') != None:
+        del figures['prediction']
     return figures
 
 @app.post('/postData')
@@ -125,14 +147,15 @@ async def postData(req: Request):
     global dataframe, model, figures
 
     row = await req.json()
-    arr = list()
-    for r,val in row.items():
-        arr.append(val[0])
+    # arr = list()
+    # for r,val in row.items():
+    #     arr.append(val[0])
     print(row)
-    predicted = prediction(arr,model)
-    row['Survived'] = [predicted]
-    dataframe = dataframe.append(row, ignore_index=True, sort=False)
-    model = initial_code()
+    X,y = create_model(row)
+    predicted = prediction(X)
+    # row['Survived'] = [predicted]
+    # dataframe = dataframe.append(row, ignore_index=True, sort=False)
+    # model = initial_code()
     figures['prediction'] = predicted
 
     return figures
