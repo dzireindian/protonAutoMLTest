@@ -29,20 +29,36 @@ def plotter():
     return my_base64_jpgData
 
 
-def prediction(array):
-    global model,dataframe
+def prediction(array, loaded_model):
+    
     # a = np.asarray(array).reshape(1, -1)
-    # print(array)
-    predicted_value = model.predict(array)
-    dataframe.iloc[-1, dataframe.columns.get_loc('Survived')] = predicted_value
-    initial_code()
+    # print(a)
+    predicted_value = loaded_model.predict(array)
     return predicted_value
 
 
 def create_model(df):
     global dataframe
+    X,y = None,None
 
-    y,X = None,None
+    if isinstance(df,pd.DataFrame):
+        drop_list = ['Survived', 'Name', 'Ticket', 'Cabin']
+        y = pd.Series(df['Survived'])
+        X =df.drop(drop_list, axis=1)
+        data_types = df.dtypes.apply(lambda x: "number" if (str(x) == "int64" or "float64" == str(x)) else "text")
+        data_types = data_types.to_dict()
+        del data_types['Survived']
+        data_types = data_types.items()
+
+        input_fields = list(data_types)
+        figures['inputs'] = input_fields
+    else:
+        df = pd.DataFrame(df)
+        # drop_list = ['Name', 'Ticket', 'Cabin']
+        dfCopy = dict(df)
+        dfCopy['Survived'] = "Temp"
+        dataframe = dataframe.append(dfCopy, ignore_index=True, sort=False)
+        X = df
 
     if isinstance(df, pd.DataFrame):
         y = pd.Series(df['Survived'])
@@ -60,8 +76,9 @@ def create_model(df):
     X = X.to_numpy()
     # print(X)
     # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, stratify=y, random_state=42)
+   
 
-    return X, y
+    return X,y
 
 
 def initial_code():
@@ -71,8 +88,8 @@ def initial_code():
     ser = df.isna().sum()
     ser_dict = ser.to_dict()
 
-    # print(list(df['Sex'].unique()))
-    # print(list(df['Embarked'].unique()))
+    print(list(df['Sex'].unique()))
+    print(list(df['Embarked'].dropna().unique()))
 
     data_types = df.dtypes.apply(lambda x: "number" if (str(x) == "int64" or "float64" == str(x)) else "text")
     data_types = data_types.to_dict()
@@ -124,10 +141,7 @@ def initial_code():
     model.fit(X, y)
     joblib.dump(model, "model_joblib")
     loaded_model = joblib.load("model_joblib")
-
-
-    # print(figures)
-    model =  loaded_model
+    return loaded_model
 
 
 initial_code()
@@ -150,11 +164,12 @@ async def postData(req: Request):
     # arr = list()
     # for r,val in row.items():
     #     arr.append(val[0])
-    print(row)
+    # print(row)
+
     X,y = create_model(row)
-    predicted = prediction(X)
-    # row['Survived'] = [predicted]
-    # dataframe = dataframe.append(row, ignore_index=True, sort=False)
+    predicted = prediction(X.to_numpy(),model)
+    dataframe.iloc[-1,dataframe.columns.get_loc('Survived')] = predicted
+
     # model = initial_code()
     figures['prediction'] = predicted
 
