@@ -15,6 +15,10 @@ from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
 dataframe = pd.read_csv("titanic.csv")
 figures = dict()
 
+dataframe = pd.read_csv("titanic.csv")
+figures = dict()
+
+
 def plotter():
     my_stringIObytes = io.BytesIO()
     plt.savefig(my_stringIObytes, format='jpg')
@@ -24,16 +28,32 @@ def plotter():
 
     return my_base64_jpgData
 
-def prediction(array,loaded_model):
-    a = np.asarray(array).reshape(1, -1)
-    print(a)
-    predicted_value = loaded_model.predict(a)
+
+def prediction(array, loaded_model):
+    # a = np.asarray(array).reshape(1, -1)
+    # print(a)
+    array = pd.DataFrame(array)
+    encoder = ce.OneHotEncoder(handle_unknown='return_nan', return_df=True, use_cat_names=True)
+    X = encoder.fit_transform(array)
+    X = X.to_numpy()
+    predicted_value = loaded_model.predict(X)
+
     return predicted_value
 
+
 def create_model(df):
+    global figures
     y = pd.Series(df['Survived'])
     drop_list = ['Survived', 'Name', 'Ticket', 'Cabin']
     X = df.drop(drop_list, axis=1)
+
+    data_types = df.dtypes.apply(lambda x: "number" if (str(x) == "int64" or "float64" == str(x)) else "text")
+    data_types = data_types.to_dict()
+    del data_types['Survived']
+    data_types = data_types.items()
+
+    input_fields = list(data_types)
+    figures['inputs'] = input_fields
 
     encoder = ce.OneHotEncoder(handle_unknown='return_nan', return_df=True, use_cat_names=True)
     X = encoder.fit_transform(X)
@@ -47,6 +67,7 @@ def create_model(df):
 
     return loaded_model
 
+
 def initial_code():
     global dataframe,figures
     df = dataframe.copy(deep=True)
@@ -54,11 +75,12 @@ def initial_code():
     ser = df.isna().sum()
     ser_dict = ser.to_dict()
 
-    # print(list(df['Sex'].unique()))
-    # print(list(df['Embarked'].unique()))
+    # print(df)
+    # print(df['Sex'].unique())
+    # print(df['Embarked'].unique())
 
-    figures['gender'] = list(df['Sex'].unique())
-    figures['Embardked'] = list(df['Embarked'].unique())
+    figures['gender'] = df['Sex'].unique()
+    figures['Embarked'] = df['Embarked'].dropna().unique()
 
     for label,value in ser_dict.items():
         if value < 5:
@@ -69,11 +91,6 @@ def initial_code():
             df[label] = df[label].fillna('NA')
 
     # df.dtypes.apply(lambda x: print(str(x)))
-    data_types = df.dtypes.apply(lambda x: "number" if (str(x) == "int64" or "float64" == str(x)) else "text")
-    data_types = data_types.to_dict().items()
-
-    input_fields = list(data_types)
-    figures['inputs'] = input_fields
 
     num_cols = df.select_dtypes([np.int64, np.float64]).columns.tolist()
 
@@ -98,8 +115,20 @@ def initial_code():
     my_base64_jpgData = plotter()
     figures['object_columns'] = my_base64_jpgData
 
+    # print(list(figures.values()))
     return create_model(df)
+
 
 model = initial_code()
 
+array = {"Age":[8],"PassengerId":[7],"Pclass":[6],"Name":["hgfhgfhg"],"SibSp":[6],"Parch":[8],"Ticket":["jhghjgj"],"Fare":[8],"Cabin":["jvjgjhgkj"],"Sex":["female"],"Embarked":["C"]}
+predicted = prediction(array,model)
+array["Survived"] = predicted
+
+row = pd.DataFrame(array)
+dataframe = dataframe.append(row, ignore_index=True, sort=False)
+
+print(dataframe)
+
+model = initial_code()
 # print(input_fields)
