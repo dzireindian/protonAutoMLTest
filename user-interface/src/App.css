@@ -10,8 +10,22 @@
   z-index: 99999;
 }
 
+.overflow-scroll{
+  height: 30rem;
+  width: -webkit-fill-available;
+}
+
 .btn{
   width: auto;
+}
+
+/* .container{
+  margin-left: 0px;
+  margin-right: 0px;
+} */
+
+body{
+  background-color:rgb(221, 216, 216);
 }
 
 .loader-inner {
@@ -23,6 +37,15 @@
   right: 0;
   top: 0;
   width: 100px;
+}
+
+.col_images {
+  width: 100%;
+  height: inherit;
+}
+
+.col{
+  width: 50%;
 }
 
 .loader-line-wrap {

@@ -25,48 +25,63 @@ var load = (<div class="loader">
 </div>);
 
 function postToLearn(data){
+  console.log(data)
   var myHeaders = new Headers();
   myHeaders.append("Content-Type", "application/json");
+
+  var loader = document.getElementById('columns')
+    var others = document.getElementById('others')
+    ReactDOM.render((<div class="spinner-border text-secondary position-absolute top-50 start-50 translate-middle" role="status">
+    <span class="visually-hidden">Loading...</span>
+  </div>),loader);
+    ReactDOM.render("",others);
 
 var requestOptions = {
   method: 'POST',
   headers: myHeaders,
-  body: data,
+  body: JSON.stringify(data),
   redirect: 'follow'
 };
 
 fetch("http://localhost:5000/expressPostData", requestOptions)
   .then(response => response.text())
   .then(result => {
+    console.log(result)
     result = JSON.parse(result);
-    var loader = document.getElementById('columns')
-    var others = document.getElementById('others')
-    ReactDOM.render((<div class="spinner-border text-secondary" role="status">
-    <span class="visually-hidden">Loading...</span>
-  </div>),loader);
-    ReactDOM.render("",others);
     
-    var columns = result['columns'].map((col) => {
-      return(<div class="col"><img src={`data:image/jpeg;base64,${col}`}></img></div>)
-    })
+    var columns = <div class="overflow-scroll"><div class="row">{result['columns'].map((col) => {
+      return(<div class="col-sm"><img src={`data:image/jpeg;base64,${col}`}></img></div>)
+    })}</div></div>
 
-    var otherContent = [(<div class="col"><img src={`data:image/jpeg;base64,${result['scatter_matrix']}`}></img></div>),(<div class="col"><img src={`data:image/jpeg;base64,${result['object_columns']}`}></img></div>)]
+    var otherContent = [(<div class="col"><img class="col_images" src={`data:image/jpeg;base64,${result['scatter_matrix']}`}></img></div>),(<div class="col"><img class="col_images" src={`data:image/jpeg;base64,${result['object_columns']}`}></img></div>)]
   
-    ReactDOM.render((<div class="overflow">{columns}</div>),loader);
-    ReactDOM.render(otherContent,others);
+
     ReactDOM.render(result['prediction'],document.getElementById('prediction'));
+    ReactDOM.render(columns,loader);
+    ReactDOM.render(otherContent,others);
 
   })
   .catch(error => console.log('error', error));
 }
 
 function submit(){
+
   var inputs = [...document.getElementsByTagName('INPUT')];
   var selections = [...document.getElementsByTagName('SELECT')]
 
   var data = {Age: 0};
+  var warn = ""
+
+  
+
   inputs.forEach((input) => {
     var value = input.value
+
+    if(value === undefined){
+      warn = "input fields can not be empty"
+      // break;
+    }
+
     if(isNaN(value) === false){
       data[input.getAttribute('title')] =[ (value.search('.') === -1)?parseFloat(value):parseInt(value)];
     }else{
@@ -81,8 +96,14 @@ function submit(){
     data[selected[index].getAttribute('title')] = [selected[index].value];
   })
 
+  // console.log(data)
+  if (warn !== ""){
+    alert(warn);
+    return;
+  }
+
   delete data[null];
-  console.log("data = ",JSON.stringify(data));
+  // console.log("data = ",JSON.stringify(data));
   postToLearn(data);
 
 }
@@ -122,13 +143,13 @@ function getData(){
         values.push(inputs)
       })
 
-      var columns = <div class="overflow">{result['columns'].map((col) => {
-        return(<div class="col"><img src={`data:image/jpeg;base64,${col}`}></img></div>)
-      })}</div>
+      var columns = <div class="overflow-scroll"><div class="row">{result['columns'].map((col) => {
+        return(<div class="col-sm"><img src={`data:image/jpeg;base64,${col}`}></img></div>)
+      })}</div></div>
   
-      var otherContent = [(<div class="col"><img src={`data:image/jpeg;base64,${result['scatter_matrix']}`}></img></div>),(<div class="col"><img src={`data:image/jpeg;base64,${result['object_columns']}`}></img></div>)]
+      var otherContent = [(<div class="col"><img class="col_images" src={`data:image/jpeg;base64,${result['scatter_matrix']}`}></img></div>),(<div class="col"><img class="col_images" src={`data:image/jpeg;base64,${result['object_columns']}`}></img></div>)]
 
-      content = (<div class="container">
+      content = (<div>
                   <div class="row">
                   <p class="fs-3 fw-bold text-center">Predicted value is :</p>
                   <p id="prediction" class="fs-1 fw-bolder text-center"></p>
@@ -148,11 +169,10 @@ function getData(){
                     </table>
                     <button onClick={submit} type="button" class="btn btn-secondary">Submit</button>
                   </div>
-                  <div id="columns" class="row">
+                  <div id="columns" class="row position-relative">
                   {columns}
                   </div>
-                  <div id="others" class="row"></div>
-                  {otherContent}
+                  <div id="others" class="row">{otherContent}</div>
                   </div>);
       setState({...state,loading: false,once: false});
     })
