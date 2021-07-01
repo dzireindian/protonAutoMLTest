@@ -1,6 +1,7 @@
 import io
 import base64
 import joblib
+import json
 
 import pandas as pd
 import numpy as np
@@ -29,16 +30,31 @@ def plotter():
 
 
 def prediction(array, loaded_model):
-    a = np.asarray(array).reshape(1, -1)
-    print(a)
-    predicted_value = loaded_model.predict(a)
+    # a = np.asarray(array).reshape(1, -1)
+    # print(a)
+    array = pd.DataFrame(array)
+    encoder = ce.OneHotEncoder(handle_unknown='return_nan', return_df=True, use_cat_names=True)
+    X = encoder.fit_transform(array)
+    X = X.to_numpy()
+    predicted_value = loaded_model.predict(X)
+
     return predicted_value
 
 
 def create_model(df):
+    global figures
     y = pd.Series(df['Survived'])
     drop_list = ['Survived', 'Name', 'Ticket', 'Cabin']
     X = df.drop(drop_list, axis=1)
+    
+    data_types = df.dtypes.apply(lambda x: "number" if (str(x) == "int64" or "float64" == str(x)) else "text")
+    data_types = data_types.to_dict()
+    del data_types['Survived']
+    data_types = data_types.items()
+
+    input_fields = list(data_types)
+    figures['inputs'] = input_fields
+
 
     encoder = ce.OneHotEncoder(handle_unknown='return_nan', return_df=True, use_cat_names=True)
     X = encoder.fit_transform(X)
@@ -60,22 +76,22 @@ def initial_code():
     ser = df.isna().sum()
     ser_dict = ser.to_dict()
 
-    for label, value in ser_dict.items():
+    # print(df)
+    # print(df['Sex'].unique())
+    # print(df['Embarked'].unique())
+
+    figures['gender'] = df['Sex'].unique().tolist()
+    figures['Embarked'] = df['Embarked'].dropna().unique().tolist()
+
+    for label,value in ser_dict.items():
         if value < 5:
             df.dropna(subset=[label], inplace=True)
-        elif value > 5 and value < 600:
-            df[label] = df[label].fillna(df[label].mean())
+        elif value > 5 and value <600:
+            df[label]= df[label].fillna(df[label].mean())
         elif value > 600:
             df[label] = df[label].fillna('NA')
 
     # df.dtypes.apply(lambda x: print(str(x)))
-    data_types = df.dtypes.apply(lambda x: "number" if (str(x) == "int64" or "float64" == str(x)) else "text")
-    data_types = data_types.to_dict()
-    del data_types['Survived']
-    data_types = data_types.items()
-
-    input_fields = list(data_types)
-    figures['inputs'] = input_fields
 
     num_cols = df.select_dtypes([np.int64, np.float64]).columns.tolist()
 
@@ -89,7 +105,6 @@ def initial_code():
     scatter_matrix(df[num_cols], figsize=(50, 50))
     my_base64_jpgData = plotter()
 
-    
     figures['columns'] = col_histograms
     figures['scatter_matrix'] = my_base64_jpgData
 
@@ -101,6 +116,7 @@ def initial_code():
     my_base64_jpgData = plotter()
     figures['object_columns'] = my_base64_jpgData
 
+    # print(list(figures.values()))
     return create_model(df)
 
 
@@ -112,18 +128,25 @@ app = FastAPI()
 @app.get("/getData")
 def getData():
     global figures
+    if figures.get('prediction') != None:
+        del figures['prediction']
     return figures
 
 @app.post('/postData')
-def postData(req: Request):
+async def postData(req: Request):
     global dataframe, model, figures
+    row = await req.json()
+    # arr = list()
+    # for r,val in row.items():
+    #     arr.append(val[0])
+    print(row)
 
-    row = req.json()
-    arr = list(row.values())
-    predicted = prediction(arr,model)
-    row['Survived'] = [predicted]
+    predicted = prediction(row,model)
+    row['Survived'] = predicted
+    row = pd.DataFrame(row)
+    # print(row)
     dataframe = dataframe.append(row, ignore_index=True, sort=False)
     model = initial_code()
-    figures['prediction'] = predicted
+    figures['prediction'] = int(predicted[0])
 
     return figures

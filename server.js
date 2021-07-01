@@ -2,6 +2,7 @@ const express = require('express');
 var axios = require('axios');
 
 const app = express();
+app.use(express.json())
 const port = 5000;
 
 app.get('/', (req, res) => {
@@ -27,25 +28,31 @@ app.get('/expressGetData',(req, res) => {
 
 })
 
-app.post('expressPostData',(req,res) => {
+app.post('/expressPostData',(req,res) => {
     var data = req.body;
-      
-      var config = {
-        method: 'post',
-        url: 'http://127.0.0.1:8000/postData',
-        headers: { 
-          'Content-Type': 'application/json'
-        },
-        data : data
-      };
-      
-      axios(config)
-      .then( (response) => {
-        res.status(200).json(response.data);
-      })
-      .catch(function (error) {
-        console.log(error);
-      });
+      console.log(data)
+
+    // var config = {
+    // method: 'post',
+    // url: 'http://127.0.0.1:8000/postData',
+    // headers: { 
+    //     'Content-Type': 'application/json'
+    // },
+    // data : data
+    // };
+
+    axios.post('http://127.0.0.1:8000/postData',req.body,{headers: { 
+      'Content-Type': 'application/json'
+  }})
+    .then(function (response) {
+    response = response.data
+    // console.log(JSON.stringify(response));
+    res.status(200).send(response);
+    })
+    .catch(function (error) {
+    console.log(error);
+    });
+
 })
 
 app.listen(port, () => {
